@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <cstdlib>
 #include <ctime>
+#include <vector>
 
 using namespace std;
 
@@ -97,74 +98,127 @@ class SensibleComputerPlayer : public Player
 {
 protected:
     Board *b;
-    int checkLine(char arr[], int x, int y, int z, char myMark, char opponentMark)
+    int lines[8][3] = {
+        {0, 1, 2},
+        {3, 4, 5},
+        {6, 7, 8}, // Rows
+        {0, 3, 6},
+        {1, 4, 7},
+        {2, 5, 8}, // Columns
+        {0, 4, 8},
+        {2, 4, 6} // Diagonals
+    };
+    // int checkForTwoInline(char boardArray[], char mark);
+    int checkForTwoInline(char boardArray[], char mark)
     {
-        int myCount = 0;
-        int opponentCount = 0;
-        int empty = -1;
-
-        if (arr[x] == myMark)
-            myCount++;
-        else if (arr[x] == opponentMark)
-            opponentCount++;
-        else
-            empty = x;
-
-        if (arr[y] == myMark)
-            myCount++;
-        else if (arr[y] == opponentMark)
-            opponentCount++;
-        else
-            empty = y;
-
-        if (arr[z] == myMark)
-            myCount++;
-        else if (arr[z] == opponentMark)
-            opponentCount++;
-        else
-            empty = z;
-
-        if (myCount == 2 && empty != -1)
-            return empty;
-        if (opponentCount == 2 && empty != -1)
-            return empty;
-        if (myCount == 1 && opponentCount == 0 && empty != -1)
-            return empty;
-
+        for (int(&line)[3] : lines)
+        {
+            int markCount = 0;
+            int emptyPos = -1; // means no empty cell till yet
+            for (int pos : line)
+            {
+                if (boardArray[pos] == mark)
+                {
+                    markCount++;
+                }
+                else if (boardArray[pos] >= '1' && boardArray[pos] <= '9')
+                {
+                    emptyPos = pos;
+                }
+            }
+            if (markCount == 2 && emptyPos != -1)
+            {
+                return emptyPos + 1;
+            }
+        }
         return -1;
+    }
+    int checkForOneInLine(char boardArray[], char mark)
+    {
+        vector<int> possibleMoves;
+        for (int(&line)[3] : lines)
+        {
+            int markCount = 0;
+            int emptyCount = 0;
+            vector<int> emptyPositions;
+            for (int pos : line)
+            {
+                if (boardArray[pos] == mark)
+                    markCount++;
+                else if (boardArray[pos] >= '1' && boardArray[pos] <= '9')
+                {
+                    emptyCount++;
+                    emptyPositions.push_back(pos);
+                }
+            }
+            if (markCount == 1 && emptyCount == 2)
+            {
+                for (int pos : emptyPositions)
+                {
+                    possibleMoves.push_back(pos + 1);
+                }
+            }
+        }
+        if (!possibleMoves.empty())
+        {
+            return possibleMoves[rand() % possibleMoves.size()];
+        }
+        return -1;
+    }
+    int findEmptyCell(char boardArray[], char mark)
+    {
+        int emptyCells[9];
+        int emptyCount = 0;
+        for (int i = 0; i < 9; i++)
+        {
+            if (boardArray[i] >= '1' && boardArray[i] <= '9')
+                emptyCells[emptyCount++] = i + 1;
+        }
+        if (emptyCount > 0)
+        {
+            return emptyCells[rand() % emptyCount];
+        }
+        return 1;
     }
 
 public:
     SensibleComputerPlayer(char mark, Board *_b) : Player(mark), b(_b) {}
     int getMove()
     {
-        char arr[9];
-        b->getBoard(arr);
+        char boardArray[9];
+        b->getBoard(boardArray);
+        int move = 0;
 
-        char myMark = getMark();
-        char opponentMark = (myMark == 'O') ? 'X' : 'O';
-
-        int lines[8][3] = {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}, {0, 3, 6}, {1, 4, 7}, {2, 5, 8}, {0, 4, 8}, {2, 4, 6}};
-
-        for (int i = 0; i < 8; i++)
+        // if there are two marks in any line and i win the game
+        move = checkForTwoInline(boardArray, getMark());
+        if (move != -1)
         {
-            int move = checkLine(arr, lines[i][0], lines[i][1], lines[i][2], myMark, opponentMark);
-            if (move != -1)
-            {
-                cout << "Sensible Computer selects box at index " << move + 1 << endl;
-                return move + 1;
-            }
+            cout << "Sensible Computer selects box " << move << " to put " << getMark() << "(winning move)" << endl;
+            return move;
         }
 
-        for (int i = 0; i < 9; i++)
+        // if there are two opponent's marks in any line and i block the line
+        int opponentMark = (getMark() == 'X') ? 'O' : 'X';
+        move = checkForTwoInline(boardArray, opponentMark);
+        if (move != -1)
         {
-            if (arr[i] != 'X' && arr[i] != 'O')
-            {
-                cout << "Sensible Computer selects box at index " << i + 1 << endl;
-                return i + 1;
-            }
+            cout << "Sensible Computer selects box " << move << " to put " << getMark() << "(blocking move)" << endl;
+            return move;
         }
-        return 1;
+
+        // if there is one myMark in line and two empty cells then try to make win opportunity by selecting one of those two empty slots/cells randomly
+        move = checkForOneInLine(boardArray, getMark());
+        if (move != -1)
+        {
+            cout << "Sensible Computer selects box " << move << " to put " << getMark() << "(creating opportunity)" << endl;
+            return move;
+        }
+
+        // if no opportunity to win or win cell(only one to win game) or block cell(block the opponent cell) found then select random cell from left empt cells
+        move = findEmptyCell(boardArray, getMark());
+        if (move != -1)
+            cout << "Sensible Computer selects box " << move << " to put " << getMark() << "(random empty cell)" << endl;
+        return move;
     }
 };
 
@@ -174,19 +228,35 @@ class Game
     Player *p1, *p2;
 
 public:
-    Game()
+    Game(int gameMode, char p1Mark = 'X', char p2Mark = 'O')
     {
         init();
-        int choice;
-        cout << "Press 1 to select Human vs.Human & press 2 to select Human vs. Nonsense Computer : ";
-        cin >> choice;
-        p1 = new HPlayer('X');
-        if (choice == 1)
-            p2 = new HPlayer('O');
-        else if (choice == 2)
-            p2 = new NonSenseComputerPlayer('O');
-        else if (choice == 3)
-            p2 = new SensibleComputerPlayer('O', &b);
+        switch (gameMode)
+        {
+        case 1:
+            p1 = new HPlayer(p1Mark);
+            p2 = new HPlayer(p2Mark);
+            cout << "Game Mode: Human vs Human" << endl;
+            break;
+        case 2:
+            p1 = new HPlayer(p1Mark);
+            p2 = new NonSenseComputerPlayer(p2Mark);
+            cout << "Game Mode: Human vs NonSense Computer" << endl;
+            break;
+        case 3:
+            p1 = new HPlayer(p1Mark);
+            p2 = new SensibleComputerPlayer(p2Mark, &b);
+            cout << "Game Mode: Human vs Sensible Computer" << endl;
+            break;
+        case 4:
+            p1 = new NonSenseComputerPlayer(p1Mark);
+            p2 = new SensibleComputerPlayer(p2Mark, &b);
+            cout << "Nonsense Computer vs Sensible Computer" << endl;
+            break;
+
+        default:
+            break;
+        }
         b.draw();
     }
     void init()
@@ -270,7 +340,38 @@ public:
 };
 int main()
 {
-    Game g;
-    g.runGame();
+    char playAgain;
+    do
+    {
+        int gameMode;
+        cout << "\n==== TIC TAC TOE ====\n";
+        cout << "Select game mode:" << endl;
+        cout << "1: Human vs Human" << endl;
+        cout << "2: Human vs Nonsense Computer" << endl;
+        cout << "3: Human vs Sensible Computer" << endl;
+        cout << "4: Nonsense Computer vs Sensible Computer" << endl;
+        cout << "Enter your choice (1-4): ";
+        cin >> gameMode;
+        while (gameMode < 1 || gameMode > 4)
+        {
+            cout << "Invalid choice. Please enter a number between 1 and 4: ";
+            cin >> gameMode;
+        }
+        char p1Mark, p2Mark;
+        cout << "Choose mark for Player 1 (O/X): ";
+        cin >> p1Mark;
+        while (toupper(p1Mark) != 'O' && toupper(p1Mark) != 'X')
+        {
+            cout << "Invalid mark. Please choose O or X: ";
+            cin >> p1Mark;
+        }
+        p1Mark = toupper(p1Mark);
+        p2Mark = (p1Mark == 'O') ? 'X' : 'O';
+        Game g(gameMode, p1Mark, p2Mark);
+        g.runGame();
+        cout << "\nPlay again? (Y/N): ";
+        cin >> playAgain;
+    } while (toupper(playAgain) == 'Y');
+    cout << "\nThanks for playing Tic Tac Toe!\n";
     return 0;
 }
